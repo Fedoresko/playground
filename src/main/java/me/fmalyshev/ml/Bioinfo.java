@@ -1,6 +1,9 @@
 package me.fmalyshev.ml;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 public class Bioinfo {
@@ -41,7 +44,13 @@ public class Bioinfo {
 
         private Node getLink(Node node) {
             if (node.link == null) {
-                node.link = (node == root || node.parent == null) ? root : go(getLink(node.parent), node.ch);
+                node.link = (node == root || node.parent == root) ? root : go(getLink(node.parent), node.ch);
+                if (node.link.terminalTokens != null) {
+                    if (node.terminalTokens == null) {
+                        node.terminalTokens = new ArrayList<>();
+                    }
+                    node.terminalTokens.addAll(node.link.terminalTokens);
+                }
             }
             return node.link;
         }
@@ -54,17 +63,17 @@ public class Bioinfo {
                     next = root;
                 } else {
                     next = go(getLink(state), symbol);
-                    if (consumer != null && next.terminalTokens != null) {
-                        consumer.accept(next.terminalTokens);
-                    }
                 }
             }
+
             state = next;
             return state;
         }
 
         public Node feed(char symbol) {
             state = go(state, symbol);
+            if (state.link == null)
+                getLink(state);
 
             if (consumer != null && state.terminalTokens != null) {
                 consumer.accept(state.terminalTokens);
@@ -87,7 +96,15 @@ public class Bioinfo {
             for(char c : token.toCharArray()) {
                 cur = tree.build(cur, c);
             }
+            if (cur.terminalTokens == null) {
+                cur.terminalTokens = new ArrayList<>();
+            }
             cur.terminalTokens.add(i++);
+            return this;
+        }
+
+        public MutlimatchTreeBuilder withMatchesConsumer(Consumer<Iterable<Integer>> consumer) {
+            tree.setMatchesConsumer(consumer);
             return this;
         }
 
@@ -103,7 +120,29 @@ public class Bioinfo {
         nodes.add(root);
     }
 
-    public static void main(String [] args) {
+    public static void main(String [] args) throws Exception {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 
+        MutlimatchTreeBuilder builder = new MutlimatchTreeBuilder();
+        String text = reader.readLine();
+        int n = Integer.valueOf(reader.readLine());
+        for (int i = 0; i < n; i++) {
+            String word = reader.readLine();
+            builder.feed(word);
+        }
+
+        final AtomicLong idx = new AtomicLong(0);
+        builder.withMatchesConsumer( matches -> {
+           for (int nmtch : matches) {
+               System.out.println("#"+nmtch+ " ends at "+idx.get());
+           }
+        });
+
+        MutlimatchTree tree = builder.build();
+
+        for (char ch : text.toCharArray()) {
+            tree.feed(ch);
+            idx.incrementAndGet();
+        }
     }
 }
