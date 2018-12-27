@@ -38,8 +38,8 @@ public class Main {
         return res;
     }
 
-    private static final int START = 1;
-    private static final int GENE = 2;
+    private static final int START = 2;
+    private static final int GENE = 1;
 
     private static class Point {
         public Point(int coord, int flags, int num) {
@@ -54,7 +54,6 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-
 
         int [] nm = fastInegers(reader.readLine());
         int n = nm[0]; int m = nm[1];
@@ -77,10 +76,69 @@ public class Main {
             }
         }
 
-        points.sort((o1, o2) ->
-                Integer.compare(o1.coord, o2.coord));
+        points.sort((o1, o2) -> {
+            int res = Integer.compare(o1.coord, o2.coord);
+            if (res == 0) {
+                res = Integer.compare(o2.flags, o1.flags);
+            }
+            return res;
+        });
 
+        int [] slOvGen = new int[n];
+        int [] genOvSl = new int[m];
 
+        Arrays.fill(genOvSl, -1);
+        Set<Integer> gens = new HashSet<>();
+        Set<Integer> slices = new HashSet<>();
+
+        for (Point p : points) {
+            switch (p.flags) {
+                case START | GENE:
+                    gens.add(p.num);
+                    break;
+
+                case START:
+                    slices.add(p.num);
+                    break;
+
+                case GENE:
+                    gens.remove(p.num);
+                    for (Iterator<Integer> it = slices.iterator(); it.hasNext(); ) {
+                        int nSlice = it.next();
+                        if (genOvSl[nSlice] == -1) {
+                            genOvSl[nSlice] = p.num;
+                            slOvGen[p.num]++;
+                        } else if (genOvSl[nSlice] != p.num) {
+                            slOvGen[genOvSl[nSlice]]--;
+                            it.remove();
+                        }
+                    }
+
+                    break;
+
+                default:
+                    slices.remove(p.num);
+                    if (gens.size() == 1) {
+                        int nGen = gens.iterator().next();
+                        if (genOvSl[p.num] == -1) {
+                            genOvSl[p.num] = nGen;
+                            slOvGen[nGen]++;
+                        } else if (genOvSl[p.num] != nGen) {
+                            gens.clear();
+                            slOvGen[genOvSl[p.num]]--;
+                        }
+                    } else if (gens.size() != 0) {
+                        if (genOvSl[p.num] != -1) {
+                            slOvGen[genOvSl[p.num]]--;
+                        }
+                        gens.clear();
+                    }
+            }
+
+        }
+
+        for (int i = 0; i < n; i++) {
+            System.out.println(slOvGen[i]);
+        }
     }
-
 }
