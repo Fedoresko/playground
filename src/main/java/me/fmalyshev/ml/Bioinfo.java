@@ -154,7 +154,7 @@ public class Bioinfo {
     }
 
     static class DiscoverSub {
-        Set<Discover> discovers = new HashSet<>();
+        BitSet discovers = new BitSet();
         String substring = "";
     }
 
@@ -177,12 +177,12 @@ public class Bioinfo {
 
 
         final AtomicInteger idx = new AtomicInteger(0);
-        Set<Discover> dmatches = new HashSet<>();
+        BitSet dmatches = new BitSet();
 
         builder.withMatchesConsumer( matches -> {
             for (int nmtch : matches) {
-                dmatches.add(new Discover(nmtch, idx.get()));
-           }
+                dmatches.set(nmtch);
+            }
         });
 
         MutlimatchTree tree = builder.build();
@@ -202,13 +202,13 @@ public class Bioinfo {
                 DiscoverSub newSub = new DiscoverSub();
                 DiscoverSub oldWalk = walkM.get(node);
                 if (oldWalk != null) {
-                    newSub.discovers.addAll(oldWalk.discovers);
-                    newSub.discovers.addAll(dmatches.stream().map(d->new Discover(d.nToken, oldWalk.substring.length())).collect(Collectors.toCollection(ArrayList::new)));
+                    newSub.discovers.or(oldWalk.discovers);
+                    newSub.discovers.or(dmatches);
                     newSub.substring = oldWalk.substring + ch;
 
                     DiscoverSub newWalk = walkN.getOrDefault(nxNode, new DiscoverSub());
-                    if (newWalk.discovers.size()
-                            <= newSub.discovers.size()) {
+                    if (newWalk.discovers.cardinality()
+                            <= newSub.discovers.cardinality()) {
                         walkN.put(nxNode, newSub);
                     }
                 }
@@ -216,25 +216,25 @@ public class Bioinfo {
                 newSub = new DiscoverSub();
                 DiscoverSub oldDir = dirM.get(node);
                 if (oldDir != null) {
-                    newSub.discovers.addAll(oldDir.discovers);
-                    newSub.discovers.addAll(dmatches.stream().map(d->new Discover(d.nToken, oldDir.substring.length())).collect(Collectors.toCollection(ArrayList::new)));
+                    newSub.discovers.or(oldDir.discovers);
+                    newSub.discovers.or(dmatches);
                     newSub.substring = oldDir.substring + ch;
 
                     DiscoverSub newWalk = walkN.getOrDefault(nxNode, new DiscoverSub());
-                    if (newWalk.discovers.size()
-                            <= newSub.discovers.size()) {
+                    if (newWalk.discovers.cardinality()
+                            <= newSub.discovers.cardinality()) {
                         walkN.put(nxNode, newSub);
                     }
                 }
 
                 DiscoverSub newDir = dirN.getOrDefault(nxNode, new DiscoverSub());
 
-                if (oldDir != null && newDir.discovers.size() <= oldDir.discovers.size()) {
+                if (oldDir != null && newDir.discovers.cardinality() <= oldDir.discovers.cardinality()) {
                     dirN.put(node, oldDir);
                     newDir = oldDir;
                 }
 
-                if (oldWalk != null && newDir.discovers.size() <= oldWalk.discovers.size()) {
+                if (oldWalk != null && newDir.discovers.cardinality() <= oldWalk.discovers.cardinality()) {
                     dirN.put(node, oldWalk);
                 }
 
@@ -243,28 +243,40 @@ public class Bioinfo {
             dirM = dirN;
             walkM = walkN;
 
-            final Map<Node, DiscoverSub> dirMt = dirM;
-            final Map<Node, DiscoverSub> walkMt = walkM;
+//            final Map<Node, DiscoverSub> dirMt = dirM;
+//            final Map<Node, DiscoverSub> walkMt = walkM;
 
             idx.incrementAndGet();
         }
 
         DiscoverSub best = new DiscoverSub();
         for (DiscoverSub s : walkM.values()) {
-            if (s.discovers.size() > best.discovers.size()) {
+            if (s.discovers.cardinality() > best.discovers.cardinality()) {
                 best = s;
             }
         }
         for (DiscoverSub s : dirM.values()) {
-            if (s.discovers.size() > best.discovers.size()) {
+            if (s.discovers.cardinality() > best.discovers.cardinality()) {
                 best = s;
             }
         }
 
+
+
         System.out.println(best.substring);
-        Map<Integer, Integer> disc = best.discovers.stream().collect(Collectors.toMap( e->e.nToken, e-> e.endIdx));
+
+        Map<Integer, Integer> disc = new HashMap<>();
+        Node node = tree.root;
+        idx.set(0);
+        tree.setMatchesConsumer( e -> e.forEach(i->disc.putIfAbsent(i, idx.get() - words.get(i).length() + 2 )));
+
+        for (char ch : best.substring.toCharArray()) {
+            node = tree.feed(node, ch);
+            idx.incrementAndGet();
+        }
+
         for (int i = 0; i < words.size(); i++) {
-            System.out.println(disc.containsKey(i) ? disc.get(i) - words.get(i).length() + 2 : -1);
+            System.out.println(disc.containsKey(i) ? disc.get(i) : -1);
         }
      }
 }
