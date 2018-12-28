@@ -18,13 +18,12 @@ public class Bioinfo {
         Node [] next = new Node[4];
         Node link = null;
         Node parent;
-        int index;
         char ch;
     }
 
     private static class MutlimatchTree {
         private final Node root;
-        Consumer<Collection<Integer>> consumer;
+        private Consumer<Collection<Integer>> consumer;
         private Node state;
         private int nNodes = 1;
 
@@ -43,7 +42,7 @@ public class Bioinfo {
             Node next = state.next[index];
             if (next == null) {
                 next = new Node();
-                next.index = nNodes++;
+//                next.index = nNodes++;
                 next.parent = state;
                 next.ch = symbol;
                 nodes.add(next);
@@ -154,7 +153,7 @@ public class Bioinfo {
     }
 
     static class DiscoverSub {
-        BitSet discovers = new BitSet();
+        BitSet discovers = new BitSet(nodes.size());
         String substring = "";
     }
 
@@ -175,9 +174,8 @@ public class Bioinfo {
             words.add(word);
         }
 
-
         final AtomicInteger idx = new AtomicInteger(0);
-        BitSet dmatches = new BitSet();
+        BitSet dmatches = new BitSet(nodes.size());
 
         builder.withMatchesConsumer( matches -> {
             for (int nmtch : matches) {
@@ -187,81 +185,49 @@ public class Bioinfo {
 
         MutlimatchTree tree = builder.build();
 
-        Map<Node, DiscoverSub> dirM = new HashMap<>();
-        Map<Node, DiscoverSub> walkM = new HashMap<>();
-        dirM.put(tree.root, new DiscoverSub());
+        Map<Node, DiscoverSub> walkSet = new HashMap<>();
+        walkSet.put(tree.root, new DiscoverSub());
 
         for (char ch : text.toCharArray()) {
-            Map<Node, DiscoverSub> dirN = new HashMap<>();
-            Map<Node, DiscoverSub> walkN = new HashMap<>();
+            Map<Node, DiscoverSub> nextWalkSet = new HashMap<>();
 
             for (Node node : nodes) {
                 dmatches.clear();
                 Node nxNode = tree.feed(node, ch);
 
                 DiscoverSub newSub = new DiscoverSub();
-                DiscoverSub oldWalk = walkM.get(node);
+                DiscoverSub oldWalk = walkSet.get(node);
                 if (oldWalk != null) {
                     newSub.discovers.or(oldWalk.discovers);
                     newSub.discovers.or(dmatches);
                     newSub.substring = oldWalk.substring + ch;
 
-                    DiscoverSub newWalk = walkN.getOrDefault(nxNode, new DiscoverSub());
-                    if (newWalk.discovers.cardinality()
-                            <= newSub.discovers.cardinality()) {
-                        walkN.put(nxNode, newSub);
+                    DiscoverSub newWalk = nextWalkSet.getOrDefault(nxNode, new DiscoverSub());
+                    int cardinality = newWalk.discovers.cardinality();
+                    if (cardinality
+                            <= newSub.discovers.cardinality() || cardinality == 0) {
+                        nextWalkSet.put(nxNode, newSub);
                     }
                 }
 
-                newSub = new DiscoverSub();
-                DiscoverSub oldDir = dirM.get(node);
-                if (oldDir != null) {
-                    newSub.discovers.or(oldDir.discovers);
-                    newSub.discovers.or(dmatches);
-                    newSub.substring = oldDir.substring + ch;
-
-                    DiscoverSub newWalk = walkN.getOrDefault(nxNode, new DiscoverSub());
-                    if (newWalk.discovers.cardinality()
-                            <= newSub.discovers.cardinality()) {
-                        walkN.put(nxNode, newSub);
-                    }
+                DiscoverSub newWalk = nextWalkSet.getOrDefault(nxNode, new DiscoverSub());
+                int cardinality = newWalk.discovers.cardinality();
+                if (oldWalk != null && (cardinality <= oldWalk.discovers.cardinality() || cardinality == 0)) {
+                    nextWalkSet.put(node, oldWalk);
                 }
-
-                DiscoverSub newDir = dirN.getOrDefault(nxNode, new DiscoverSub());
-
-                if (oldDir != null && newDir.discovers.cardinality() <= oldDir.discovers.cardinality()) {
-                    dirN.put(node, oldDir);
-                    newDir = oldDir;
-                }
-
-                if (oldWalk != null && newDir.discovers.cardinality() <= oldWalk.discovers.cardinality()) {
-                    dirN.put(node, oldWalk);
-                }
-
             }
 
-            dirM = dirN;
-            walkM = walkN;
-
-//            final Map<Node, DiscoverSub> dirMt = dirM;
-//            final Map<Node, DiscoverSub> walkMt = walkM;
+            walkSet = nextWalkSet;
 
             idx.incrementAndGet();
         }
 
         DiscoverSub best = new DiscoverSub();
-        for (DiscoverSub s : walkM.values()) {
+        for (DiscoverSub s : walkSet.values()) {
             if (s.discovers.cardinality() > best.discovers.cardinality()) {
                 best = s;
             }
         }
-        for (DiscoverSub s : dirM.values()) {
-            if (s.discovers.cardinality() > best.discovers.cardinality()) {
-                best = s;
-            }
-        }
-
-
 
         System.out.println(best.substring);
 

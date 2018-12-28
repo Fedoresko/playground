@@ -38,8 +38,10 @@ public class Main {
         return res;
     }
 
-    private static final int START = 2;
-    private static final int GENE = 1;
+    private static final int START_GENE = 3;
+    private static final int START_READ = 2;
+    private static final int END_READ = 1;
+    private static final int END_GENE = 0;
 
     private static class Point {
         public Point(int coord, int flags, int num) {
@@ -64,7 +66,7 @@ public class Main {
             int [] intervals = fastInegers(reader.readLine());
 
             for (int j =0; j < intervals.length; j++) {
-                points.add(new Point(intervals[j], (j % 2 == 0 ? START : 0) | GENE, i));
+                points.add(new Point(intervals[j], (j % 2 == 0 ? START_GENE : END_GENE), i));
             }
         }
 
@@ -72,7 +74,7 @@ public class Main {
             int [] intervals = fastInegers(reader.readLine());
 
             for (int j =0; j < intervals.length; j++) {
-                points.add(new Point(intervals[j], (j % 2 == 0 ? START : 0), i));
+                points.add(new Point(intervals[j], (j % 2 == 0 ? START_READ : END_READ), i));
             }
         }
 
@@ -84,32 +86,35 @@ public class Main {
             return res;
         });
 
-        int [] slOvGen = new int[n];
-        int [] genOvSl = new int[m];
+        int [] numberReadsOverGen = new int[n+1];
+        int [] genInRead = new int[m];
+        int [] revertRead = new int[m];
 
-        Arrays.fill(genOvSl, -1);
+        Arrays.fill(genInRead, -1);
+        Arrays.fill(revertRead, 1);
         Set<Integer> gens = new HashSet<>();
-        Set<Integer> slices = new HashSet<>();
+        Set<Integer> reads = new HashSet<>();
 
         for (Point p : points) {
             switch (p.flags) {
-                case START | GENE:
+                case START_GENE:
                     gens.add(p.num);
                     break;
 
-                case START:
-                    slices.add(p.num);
+                case START_READ:
+                    reads.add(p.num);
                     break;
 
-                case GENE:
+                case END_GENE:
                     gens.remove(p.num);
-                    for (Iterator<Integer> it = slices.iterator(); it.hasNext(); ) {
-                        int nSlice = it.next();
-                        if (genOvSl[nSlice] == -1) {
-                            genOvSl[nSlice] = p.num;
-                            slOvGen[p.num]++;
-                        } else if (genOvSl[nSlice] != p.num) {
-                            slOvGen[genOvSl[nSlice]]--;
+                    for (Iterator<Integer> it = reads.iterator(); it.hasNext(); ) {
+                        int nRead = it.next();
+                        if (genInRead[nRead] == -1) {
+                            genInRead[nRead] = p.num;
+                            numberReadsOverGen[p.num]++;
+                        } else if (genInRead[nRead] != p.num) {
+                            numberReadsOverGen[genInRead[nRead]] -= revertRead[nRead];
+                            revertRead[nRead] = 0;
                             it.remove();
                         }
                     }
@@ -117,28 +122,34 @@ public class Main {
                     break;
 
                 default:
-                    slices.remove(p.num);
+                    reads.remove(p.num);
                     if (gens.size() == 1) {
                         int nGen = gens.iterator().next();
-                        if (genOvSl[p.num] == -1) {
-                            genOvSl[p.num] = nGen;
-                            slOvGen[nGen]++;
-                        } else if (genOvSl[p.num] != nGen) {
-                            gens.clear();
-                            slOvGen[genOvSl[p.num]]--;
+                        if (genInRead[p.num] == -1) {
+                            genInRead[p.num] = nGen;
+                            numberReadsOverGen[nGen]++;
+                        } else if (genInRead[p.num] != nGen) {
+                            numberReadsOverGen[genInRead[p.num]] -= revertRead[p.num];
+                            revertRead[p.num] = 0;
                         }
-                    } else if (gens.size() != 0) {
-                        if (genOvSl[p.num] != -1) {
-                            slOvGen[genOvSl[p.num]]--;
+                    } else {
+
+                        if (gens.size() != 0) {
+                            if (genInRead[p.num] != -1) {
+                                numberReadsOverGen[genInRead[p.num]] -= revertRead[p.num];
+                                revertRead[p.num] = 0;
+                            } else {
+                                genInRead[p.num] = n;
+                            }
                         }
-                        gens.clear();
+
                     }
             }
 
         }
 
         for (int i = 0; i < n; i++) {
-            System.out.println(slOvGen[i]);
+            System.out.println(numberReadsOverGen[i]);
         }
     }
 }
